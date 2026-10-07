@@ -57,13 +57,14 @@ class GameEngine:
             m.update()
             if m.collides(self.ship.rect):
                 self.state=GAME_OVER
-        # lasers vs meteors
-        for laser in self.ship.lasers[:]:
-            for m in self.meteors:
-                if m.collides(laser.rect):
-                    self.meteors.remove(m)
-                    self.ship.lasers.remove(laser)
-                    break
+            # lasers vs meteors
+            for laser in self.ship.lasers[:]:
+                for m in self.meteors:
+                    if m.collides(laser.rect, pad=4):
+                        self.meteors.remove(m)
+                        self.ship.lasers.remove(laser)
+                        self.meteors.extend(m.split())  # [] for small meteors, so they dissolve
+                        break
         self.meteors=[m for m in self.meteors if not m.off_screen(HEIGHT)]
         self.score+=1
 
