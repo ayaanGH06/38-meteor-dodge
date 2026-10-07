@@ -9,6 +9,8 @@ FPS=60
 BG=(8,5,20)
 
 TITLE, PLAYING, GAME_OVER = "title", "playing", "game_over"
+MULTIPLIER_INTERVAL = 600   # frames of survival per multiplier step (10s at 60 FPS)
+MAX_MULTIPLIER = 5
 
 class GameEngine:
     def __init__(self):
@@ -30,7 +32,13 @@ class GameEngine:
         self.orb_interval=random.randint(600,900)
         self.spawn_interval=60
         self.score=0
+        self.frames=0
+        self.streak=0
         self.state=TITLE
+
+    @property
+    def multiplier(self):
+        return min(MAX_MULTIPLIER, 1 + self.streak // MULTIPLIER_INTERVAL)
 
     def handle_events(self):
         for event in pygame.event.get():
@@ -74,6 +82,7 @@ class GameEngine:
             if m.collides(self.ship.rect):
                 if self.ship.absorb_hit():
                     self.meteors.remove(m)  # shield pops, meteor is destroyed
+                    self.streak=0           # a hit, even a blocked one, resets the streak
                 else:
                     self.state=GAME_OVER
 
@@ -86,7 +95,9 @@ class GameEngine:
                     self.meteors.extend(m.split())  # [] for small meteors, so they dissolve
                     break
         self.meteors=[m for m in self.meteors if not m.off_screen(HEIGHT)]
-        self.score+=1
+        self.frames+=1
+        self.streak+=1
+        self.score+=self.multiplier
 
     def draw(self):
         self.screen.fill(BG)
@@ -95,8 +106,13 @@ class GameEngine:
         for o in self.orbs: o.draw(self.screen)
         for m in self.meteors: m.draw(self.screen)
         self.ship.draw(self.screen)
-        sc=self.font.render(f"Time: {self.score//60}s",True,(200,200,240))
+        sc=self.font.render(f"Score: {self.score//60}",True,(200,200,240))
         self.screen.blit(sc,(10,10))
+        tm=self.font.render(f"Time: {self.frames//60}s",True,(200,200,240))
+        self.screen.blit(tm,(WIDTH-tm.get_width()-10,10))
+        if self.multiplier>1:
+            mt=self.font.render(f"x{self.multiplier}",True,(255,220,90))
+            self.screen.blit(mt,(WIDTH-mt.get_width()-10,40))
         if self.ship.shielded:
             sh=self.font.render(f"Shield: {self.ship.shield_timer//60+1}s",True,(120,240,255))
             self.screen.blit(sh,(10,40))
@@ -108,9 +124,11 @@ class GameEngine:
             ov.fill((0,0,0,150))
             self.screen.blit(ov,(0,0))
             m=self.big_font.render("DESTROYED!",True,(220,80,60))
-            s=self.font.render(f"Survived {self.score//60}s | SPACE to Restart",True,(200,200,200))
+            s=self.font.render(f"Survived {self.frames//60}s | Score {self.score//60}",True,(200,200,200))
+            r=self.font.render("SPACE to Restart",True,(200,200,200))
             self.screen.blit(m,(WIDTH//2-m.get_width()//2,HEIGHT//2-40))
             self.screen.blit(s,(WIDTH//2-s.get_width()//2,HEIGHT//2+20))
+            self.screen.blit(r,(WIDTH//2-r.get_width()//2,HEIGHT//2+55))
         pygame.display.flip()
 
     def run(self):
