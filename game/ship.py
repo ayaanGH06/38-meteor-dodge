@@ -3,6 +3,7 @@ import pygame
 SPEED = 5
 LASER_SPEED = 10
 FIRE_COOLDOWN = 12
+SHIELD_DURATION = 600  # frames (10s at 60 FPS)
 
 class Laser:
     def __init__(self, x, y):
@@ -24,6 +25,7 @@ class Ship:
         self.trail = []
         self.lasers = []
         self.cooldown = 0
+        self.shield_timer = 0
 
     def move(self, keys, width, height):
         dx=dy=0
@@ -48,6 +50,24 @@ class Ship:
             laser.update()
         self.lasers = [l for l in self.lasers if not l.off_screen()]
 
+    @property
+    def shielded(self):
+        return self.shield_timer > 0
+
+    def give_shield(self):
+        self.shield_timer = SHIELD_DURATION  # collecting another orb refreshes the timer
+
+    def update_shield(self):
+        if self.shield_timer > 0:
+            self.shield_timer -= 1
+
+    def absorb_hit(self):
+        """Return True if the shield soaked up this collision (and consume it)."""
+        if self.shielded:
+            self.shield_timer = 0
+            return True
+        return False
+
     def draw(self, screen):
         for laser in self.lasers:
             laser.draw(screen)
@@ -63,3 +83,10 @@ class Ship:
         pygame.draw.polygon(screen,self.color,pts)
         # engine glow
         pygame.draw.circle(screen,(255,180,60),(cx,cy+12),5)
+        if self.shielded:
+            # blink during the last 2 seconds as a warning
+            if self.shield_timer > 120 or (self.shield_timer // 6) % 2 == 0:
+                s = pygame.Surface((80, 80), pygame.SRCALPHA)
+                pygame.draw.circle(s, (80, 220, 255, 50), (40, 40), 32)
+                pygame.draw.circle(s, (140, 240, 255, 200), (40, 40), 32, 3)
+                screen.blit(s, (cx - 40, cy - 40))

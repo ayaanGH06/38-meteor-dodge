@@ -1,8 +1,8 @@
 import pygame
 import random
-from game.ship import Ship
-from game.meteor import Meteor
 from game.ship import Ship, FIRE_COOLDOWN
+from game.meteor import Meteor
+from game.orb import ShieldOrb
 
 WIDTH,HEIGHT=700,520
 FPS=60
@@ -25,10 +25,12 @@ class GameEngine:
         self.ship=Ship(WIDTH//2,HEIGHT-80)
         self.meteors=[]
         self.timer=0
+        self.orbs=[]
+        self.orb_timer=0
+        self.orb_interval=random.randint(600,900)
         self.spawn_interval=60
         self.score=0
         self.state=TITLE
-        self.started=False
 
     def handle_events(self):
         for event in pygame.event.get():
@@ -48,23 +50,41 @@ class GameEngine:
         self.ship.move(keys,WIDTH,HEIGHT)
         self.ship.shoot(keys)
         self.ship.update_lasers()
+        self.ship.update_shield()
         self.timer+=1
         if self.timer>=self.spawn_interval:
             self.meteors.append(Meteor(WIDTH))
             self.timer=0
             self.spawn_interval=max(20,self.spawn_interval-0.3)
-        for m in self.meteors:
+        # shield orbs
+        self.orb_timer+=1
+        if self.orb_timer>=self.orb_interval:
+            self.orbs.append(ShieldOrb(WIDTH))
+            self.orb_timer=0
+            self.orb_interval=random.randint(600,900)
+        for o in self.orbs[:]:
+            o.update()
+            if o.collides(self.ship.rect):
+                self.ship.give_shield()
+                self.orbs.remove(o)
+        self.orbs=[o for o in self.orbs if not o.off_screen(HEIGHT)]
+        # move meteors and check ship collisions
+        for m in self.meteors[:]:
             m.update()
             if m.collides(self.ship.rect):
-                self.state=GAME_OVER
-            # lasers vs meteors
-            for laser in self.ship.lasers[:]:
-                for m in self.meteors:
-                    if m.collides(laser.rect, pad=4):
-                        self.meteors.remove(m)
-                        self.ship.lasers.remove(laser)
-                        self.meteors.extend(m.split())  # [] for small meteors, so they dissolve
-                        break
+                if self.ship.absorb_hit():
+                    self.meteors.remove(m)  # shield pops, meteor is destroyed
+                else:
+                    self.state=GAME_OVER
+
+        # lasers vs meteors
+        for laser in self.ship.lasers[:]:
+            for m in self.meteors:
+                if m.collides(laser.rect, pad=4):
+                    self.meteors.remove(m)
+                    self.ship.lasers.remove(laser)
+                    self.meteors.extend(m.split())  # [] for small meteors, so they dissolve
+                    break
         self.meteors=[m for m in self.meteors if not m.off_screen(HEIGHT)]
         self.score+=1
 
@@ -72,10 +92,14 @@ class GameEngine:
         self.screen.fill(BG)
         for sx,sy,sr in self.stars:
             pygame.draw.circle(self.screen,(200,200,220),(sx,sy),sr)
+        for o in self.orbs: o.draw(self.screen)
         for m in self.meteors: m.draw(self.screen)
         self.ship.draw(self.screen)
         sc=self.font.render(f"Time: {self.score//60}s",True,(200,200,240))
         self.screen.blit(sc,(10,10))
+        if self.ship.shielded:
+            sh=self.font.render(f"Shield: {self.ship.shield_timer//60+1}s",True,(120,240,255))
+            self.screen.blit(sh,(10,40))
         if self.state==TITLE:
             msg=self.font.render("Press SPACE to launch",True,(180,180,240))
             self.screen.blit(msg,(WIDTH//2-msg.get_width()//2,HEIGHT//2))
