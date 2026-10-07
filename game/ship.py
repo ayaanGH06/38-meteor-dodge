@@ -1,12 +1,29 @@
 import pygame
 
 SPEED = 5
+LASER_SPEED = 10
+FIRE_COOLDOWN = 12
 
+class Laser:
+    def __init__(self, x, y):
+        self.rect = pygame.Rect(x - 2, y - 14, 4, 14)
+
+    def update(self):
+        self.rect.y -= LASER_SPEED
+
+    def off_screen(self):
+        return self.rect.bottom < 0
+
+    def draw(self, screen):
+        pygame.draw.rect(screen, (255, 80, 80), self.rect, border_radius=2)
+        
 class Ship:
     def __init__(self, x, y):
         self.rect = pygame.Rect(x-20, y-20, 40, 40)
         self.color = (80, 160, 240)
         self.trail = []
+        self.lasers = []
+        self.cooldown = 0
 
     def move(self, keys, width, height):
         dx=dy=0
@@ -19,7 +36,21 @@ class Ship:
         self.trail.append(tuple(self.rect.center))
         if len(self.trail)>10: self.trail.pop(0)
 
+    def shoot(self, keys):
+        if self.cooldown > 0:
+            self.cooldown -= 1
+        if keys[pygame.K_SPACE] and self.cooldown == 0:
+            self.lasers.append(Laser(self.rect.centerx, self.rect.top))
+            self.cooldown = FIRE_COOLDOWN
+
+    def update_lasers(self):
+        for laser in self.lasers:
+            laser.update()
+        self.lasers = [l for l in self.lasers if not l.off_screen()]
+
     def draw(self, screen):
+        for laser in self.lasers:
+            laser.draw(screen)
         for i,pos in enumerate(self.trail):
             alpha=20+i*20
             r=3+i//2

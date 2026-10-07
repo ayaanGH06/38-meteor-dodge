@@ -2,10 +2,13 @@ import pygame
 import random
 from game.ship import Ship
 from game.meteor import Meteor
+from game.ship import Ship, FIRE_COOLDOWN
 
 WIDTH,HEIGHT=700,520
 FPS=60
 BG=(8,5,20)
+
+TITLE, PLAYING, GAME_OVER = "title", "playing", "game_over"
 
 class GameEngine:
     def __init__(self):
@@ -24,22 +27,27 @@ class GameEngine:
         self.timer=0
         self.spawn_interval=60
         self.score=0
-        self.game_over=False
+        self.state=TITLE
         self.started=False
 
     def handle_events(self):
         for event in pygame.event.get():
             if event.type==pygame.QUIT: return False
-            if event.type==pygame.KEYDOWN:
-                if event.key==pygame.K_SPACE:
-                    if self.game_over: self.reset()
-                    else: self.started=True
+            if event.type==pygame.KEYDOWN and event.key==pygame.K_SPACE:
+                if self.state==TITLE:
+                    self.state=PLAYING
+                    self.ship.cooldown=FIRE_COOLDOWN  # the launch press shouldn't also fire
+                elif self.state==GAME_OVER:
+                    self.reset()
+                # PLAYING: SPACE fires lasers in update()
         return True
 
     def update(self):
-        if self.game_over or not self.started: return
+        if self.state!=PLAYING: return
         keys=pygame.key.get_pressed()
         self.ship.move(keys,WIDTH,HEIGHT)
+        self.ship.shoot(keys)
+        self.ship.update_lasers()
         self.timer+=1
         if self.timer>=self.spawn_interval:
             self.meteors.append(Meteor(WIDTH))
@@ -48,7 +56,14 @@ class GameEngine:
         for m in self.meteors:
             m.update()
             if m.collides(self.ship.rect):
-                self.game_over=True
+                self.state=GAME_OVER
+        # lasers vs meteors
+        for laser in self.ship.lasers[:]:
+            for m in self.meteors:
+                if m.collides(laser.rect):
+                    self.meteors.remove(m)
+                    self.ship.lasers.remove(laser)
+                    break
         self.meteors=[m for m in self.meteors if not m.off_screen(HEIGHT)]
         self.score+=1
 
@@ -60,10 +75,10 @@ class GameEngine:
         self.ship.draw(self.screen)
         sc=self.font.render(f"Time: {self.score//60}s",True,(200,200,240))
         self.screen.blit(sc,(10,10))
-        if not self.started:
+        if self.state==TITLE:
             msg=self.font.render("Press SPACE to launch",True,(180,180,240))
             self.screen.blit(msg,(WIDTH//2-msg.get_width()//2,HEIGHT//2))
-        if self.game_over:
+        if self.state==GAME_OVER:
             ov=pygame.Surface((WIDTH,HEIGHT),pygame.SRCALPHA)
             ov.fill((0,0,0,150))
             self.screen.blit(ov,(0,0))
